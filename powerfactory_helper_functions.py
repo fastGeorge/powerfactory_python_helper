@@ -121,6 +121,47 @@ class powerfactory_helper_functions:
 
         grppage.Show()
 
+    def make_eigenvalue_plot(self, pagename, plotname, type:int):
+        """
+        Parameters
+        ----------
+        pagename : str
+            Name of the GrpPage object where the plot should be created (max 40 characters)
+        plotname : str
+            Name to be given the plot
+        type : int
+            0 eigenvalue plot
+            1 mode polar plot
+            2 mode bar plot
+
+        Returns: the settings page if additional fixes are required
+        """
+        graphics_board = self.app.GetFromStudyCase('SetDesktop')
+        grppage = graphics_board.GetPage(pagename, 0)
+
+        if grppage != None:
+            grppage.RemovePage()
+        grppage = graphics_board.GetPage(pagename, 1)
+
+        plot = grppage.GetOrInsertModalAnalysisPlot(plotname, type, create=1)
+
+        res = [x for x in self.app.GetCalcRelevantObjects('*.ElmRes') if 'Modal' in x.loc_name]
+
+        return_ref = None
+        if type == 0:
+            eigen_plot = plot.GetContents('*.PltEigenvalues')[0]
+            eigen_plot.dataTableResultFile = res
+            return_ref = eigen_plot
+        else:
+            mode_plot = plot.GetContents('*.PltEigenmode')[0]
+            mode_plot.resultFile = res[0]
+            return_ref = mode_plot
+
+        grppage.DoAutoScale()
+        grppage.Show()
+
+        return return_ref
+
     def prepare_rms_simulation(self, int_time_step:float, simulation_time:int):
 
         init_cond = self.app.GetFromStudyCase('*.ComInc')
