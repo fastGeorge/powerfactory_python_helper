@@ -1,4 +1,6 @@
 import powerfactory #type: ignore
+import pandas as pd
+import numpy as np
 
 class powerfactory_helper_functions:
         
@@ -16,9 +18,31 @@ class powerfactory_helper_functions:
         for evt in elm_result.GetContents():
             evt.Delete()
 
+    def define_shc_event(self, event_name:str, event_object, shc_time, clear_time:float=None):
+        int_events = self.app.GetFromStudyCase('*.IntEvt')
 
-    def set_filepath_for_exports(self, filepath:str):
-        self.filepath = filepath
+        ev_object = int_events.CreateObject('EvtShc', event_name)
+
+        ev_object.p_target = event_object
+        ev_object.i_shc = 0 # 3 Phase Short Circuit
+        ev_object.time = shc_time
+
+        if type(clear_time) is float:
+            ev_clear_obj = int_events.CreateObject('EvtShc', event_name + ' clear shc')
+            ev_clear_obj.p_target = event_object
+            ev_clear_obj.i_shc = 4 # Clear short circuit
+            ev_clear_obj.time = clear_time
+
+    def define_switch_event(self, event_name:str, event_object, ev_time, open_0_close_1:int):
+        int_events = self.app.GetFromStudyCase('*.IntEvt')
+
+        ev_object = int_events.CreateObject('EvtSwitch', event_name)
+
+        ev_object.p_target = event_object
+
+        ev_object.time = ev_time
+
+        ev_object.i_switch = open_0_close_1
   
     def export_graph(self, pagename:str, filetype:str):
         """
@@ -49,49 +73,28 @@ class powerfactory_helper_functions:
 
         ComWr.Execute()
 
-    def define_switch_event(self, event_name:str, event_object, ev_time, open_0_close_1:int):
-        int_events = self.app.GetFromStudyCase('*.IntEvt')
+    def get_simulation_results_as_dataframe(self, elmres = None) -> pd.DataFrame:
+        if elmres == None:
+            elmres = self.app.GetFromStudyCase('ElmRes')
 
-        ev_object = int_events.CreateObject('EvtSwitch', event_name)
+        elmres.Load()
 
-        ev_object.p_target = event_object
+        d = {}
+        for col in range(elmres.GetNumberOfColumns()):
+            name = elmres.GetObject(col).loc_name + ";" + elmres.GetVariable(col)
 
-        ev_object.time = ev_time
+            val_arr = np.zeros(elmres.GetNumberOfRows(), dtype=np.float64)
+            if col == 0:
+                time_arr = np.zeros(elmres.GetNumberOfRows(), dtype=np.float64)
+                for row in range(elmres.GetNumberOfRows()):
+                    time_arr[row] = elmres.GetValue(row)[1]
+                d["Time"] = pd.Series(time_arr)
+            for row in range(elmres.GetNumberOfRows()):
+                val_arr[row] = elmres.GetValue(row, col)[1]
+            d[name] = pd.Series(val_arr)
+        elmres.Flush()
 
-        ev_object.i_switch = open_0_close_1
-
-    def define_shc_event(self, event_name:str, event_object, shc_time, clear_time:float=None):
-        int_events = self.app.GetFromStudyCase('*.IntEvt')
-
-        ev_object = int_events.CreateObject('EvtShc', event_name)
-
-        ev_object.p_target = event_object
-        ev_object.i_shc = 0 # 3 Phase Short Circuit
-        ev_object.time = shc_time
-
-        if type(clear_time) is float:
-            ev_clear_obj = int_events.CreateObject('EvtShc', event_name + ' clear shc')
-            ev_clear_obj.p_target = event_object
-            ev_clear_obj.i_shc = 4 # Clear short circuit
-            ev_clear_obj.time = clear_time 
-
-    def set_result_elems(self, pf_object, var_list):
-        """
-        Parameters
-        ----------
-        pf_object : DataObject (Elm)
-            Object that should get a result from the simulation
-        var_list : list
-            List of variable names that should get a result from the simulation
-        """
-        elm_res = self.app.GetFromStudyCase('*.ElmRes')
-
-        elm_res.SetObj(pf_object)
-        for var_name in var_list:
-            elm_res.AddVariable(pf_object, var_name)
-    
-    def random_function(self):
-        self.app.PrintPlain("It works like expected")
+        return pd.DataFrame(d)
 
     def make_curve(self, pagename, plotname, plot_tuples):
         """
@@ -174,6 +177,25 @@ class powerfactory_helper_functions:
 
         #Set simulation time
         com_sim.tstop = simulation_time
+
+    def set_filepath_for_exports(self, filepath:str):
+        self.filepath = filepath
+
+    def set_result_elems(self, pf_object, var_list):
+        """
+        Parameters
+        ----------
+        pf_object : DataObject (Elm)
+            Object that should get a result from the simulation
+        var_list : list
+            List of variable names that should get a result from the simulation
+        """
+        elm_res = self.app.GetFromStudyCase('*.ElmRes')
+
+        elm_res.SetObj(pf_object)
+        for var_name in var_list:
+            elm_res.AddVariable(pf_object, var_name)
+
 
     
 
